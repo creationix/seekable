@@ -2,101 +2,119 @@ var bops = require('bops');
 module.exports = seekable;
 
 function seekable(stream) {
-  var consumed = 0;
-  var position = 0;
-  var buffers = [];
+  var buffer = [];  // Buffered chunks.
+  var consumed = 0; // Total number of bytes we've consumed ever.
+  var position = 0; // Position in original stream of first byte in buffer.
+  var target;       // The place we want to seek to
+  var size;         // The number of bytes we want to emit
+  var callback;     // Where to report the emitted bytes
+
   // Read to position in a stream and read some bytes
-  return function (offset, bytes) {
-    var callback;
-    console.log("\nSEEK", offset, bytes);
-    
-    return function (cb) {
-      callback = cb;
-      seek(offset + bytes, onSeek);
-    };
+  return function (t, s) {
+    if (callback) throw new Error("Only one seek at a time");
+    target = t;
+    size = s;
+    return continuable;
+  };
 
-    function onSeek(err) {
-      var output, next, diff;
-      if (err) return callback(err);
+  // function log() {
+  //   return buffer.map(function (item) { return item.length; });
+  // }
 
-      // Skip bytes till we're where we want to be.
-      while (position < offset) {
-        console.log("SEEKING", bytes, buffers.map(function (buffer) { return buffer.length; }));
-        diff = offset - position;
-        next = buffers[0];
+  function continuable(cb) {
+    if (callback) return cb(new Error("Only one seek at a time"));
+    callback = cb;
+    seek();
+  }
 
-        // If entire chunks are to be ignored, throw them away.
-        if (next.length <= diff) {
-          buffers.shift();
-          console.log("SHIFTING CHUNK", -next.length);
-          position += next.length;
-          continue;
-        }
+  function finish(err, item) {
+    var cb = callback;
+    callback = null;
+    cb(err, item);
+  }
 
-        // Otherwise, skip the front part of the next buffer;
-        console.log("EATING FRONT", -diff);
-        buffers[0] = bops.subarray(next, diff);
-        position += diff;
-      }
-      console.log({position:position,consumed:consumed})
+  function seek() {
+    if (position > target) return finish(new Error("Can't seek backwards to " + target + " from " + position));
+    // console.log("Seeking %s/%s", position, target, log());
+    while (position < target) {
 
+      // If there is no data, load some and try again.
+      if (!buffer.length) return getMore(seek);
 
-      // Otherwise, piece smaller pieces together till we've got enough.
-      console.log("\nCONSUMING", bytes, buffers.map(function (buffer) { return buffer.length; }));
-
-      // If the next buffer is the exact size we want, send it up!
-      if (buffers[0].length === bytes) {
-        output = buffers.shift();
-        position += output.length;
-        console.log("exact change", buffers.map(function (buffer) { return buffer.length; }));
-        return callback(null, output);
+      // First check for data to throw away.
+      var first = buffer[0];
+      // If we can throw away a whole chunk, do it.
+      if (position + first.length <= target) {
+        position += first.length;
+        buffer.shift();
+        continue;
       }
 
-      // If it's bigger than we want, consume the front of it.
-      if (buffers[0].length >= bytes) {
-        output = bops.subarray(buffers[0], 0, bytes);
-        buffers[0] = bops.subarray(buffers[0], bytes);
-        position += output.length;
-        console.log("subarray", buffers.map(function (buffer) { return buffer.length; }));
-        return callback(null, output);
-      }
+      // Otherwise slice the chunk in front to get where we need to be.
+      var diff = target - position;
+      buffer[0] = bops.subarray(first, diff);
+      position += diff;
+      break;
+    }
 
-      output = bops.create(bytes);
+    // console.log("Seeking %s/%s", position, target, log());
+    consume();
+  }
+
+  function consume() {
+    // console.log("Consuming %s/%s", consumed, target + size, log());
+    if (consumed < target + size) return getMore(consume);
+    // console.log("Consuming %s/%s", consumed, target + size, log());
+    process();
+  }
+
+  function process() {
+    // console.log("processing", log());
+
+    // Check for exact size
+    var first = buffer[0];
+    var item;
+    if (first.length === size) {
+      // console.log("Exact change", size)
+      item = buffer.shift();
+    }
+    else if (first.length > size) {
+      // console.log("pslice %s/%s", size, first.length)
+      item = bops.subarray(first, 0, size);
+      buffer[0] = bops.subarray(first, size);
+    }
+    else {
+      item = bops.create(size);
       var i = 0;
-      while (i < bytes) {
-        diff = bytes - i;
-        next = buffers[0];
-        if (next.length <= diff) {
-          buffers.shift();
-          bops.copy(next, output, i);
-          i += next.length;
+      while (i < size) {
+        // console.log("piecemeal %s/%s", i, size, log());
+        var diff = size - i;
+        first = buffer[0];
+        if (first.length <= diff) {
+          buffer.shift();
+          bops.copy(first, item, i);
+          i += first.length;
         }
         else {
-          bops.copy(bops.subarray(next, 0, diff), output, i);
-          buffers[0] = bops.subarray(next, diff);
+          bops.copy(bops.subarray(first, 0, diff), item, i);
+          buffer[0] = bops.subarray(first, diff);
           i += diff;
         }
       }
-      position += bytes;
-
-      console.log("piecemeal", buffers.map(function (buffer) { return buffer.length; }));
-      return callback(null, output);
     }
-  };
+    // console.log("after processing", log());
+    position += size;
+    finish(null, item);
+  }
 
-  function seek(target, callback) {
-    console.log({target:target,consumed:consumed})
-    if (target < consumed) return callback();
+  function getMore(callback) {
     stream.read(function (err, item) {
-      if (item === undefined) {
-        console.log("END");
-        return callback(err);
-      }
-      console.log("ADDING", item.length);
-      buffers.push(item);
+      if (err) return finish(err);
+      buffer.push(item);
       consumed += item.length;
-      return seek(target, callback);
+      callback();
     });
   }
+
 }
 
