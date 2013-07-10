@@ -110,6 +110,7 @@ function seekable(stream) {
   function getMore(callback) {
     stream.read(function (err, item) {
       if (err) return finish(err);
+      if (item === undefined) return finish(new Error("Unexpected end of base stream"));
       buffer.push(item);
       consumed += item.length;
       callback();
