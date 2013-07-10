@@ -1,7 +1,7 @@
 {
   "name": "seekable",
-  "version": "0.0.2",
-  "description": "Allows for forward seeking and buffered reading in a simple-stream of binary data.",
+  "version": "0.1.0",
+  "description": "Allows for random seeking and buffered reading in a simple-stream of binary data.",
   "main": "seekable.js",
   "dependencies": {
     "bops": "~0.0.6"

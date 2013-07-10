@@ -3,9 +3,11 @@ seekable
 
 Allows for forward seeking and buffered reading in a simple-stream of binary data.
 
-### seekable(stream) -> seek
+### seekable(getStream) -> seek
 
 Create a `seek` function from a stream object.
+
+The `getStream` function allows seekable to get a new stream from you when it needs to rewind and start over.  It may be called more than once.  Make sure to pass in a new stream each time.
 
 ### seek(offset, bytes) continuable&lt;data>
 

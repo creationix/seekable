@@ -1,13 +1,23 @@
 var bops = require('bops');
 module.exports = seekable;
 
-function seekable(stream) {
-  var buffer = [];  // Buffered chunks.
-  var consumed = 0; // Total number of bytes we've consumed ever.
-  var position = 0; // Position in original stream of first byte in buffer.
-  var target;       // The place we want to seek to
-  var size;         // The number of bytes we want to emit
-  var callback;     // Where to report the emitted bytes
+function seekable(getStream) {
+  var stream;   // The current source stream.
+  var buffer;   // Buffered chunks.
+  var consumed; // Total number of bytes we've consumed ever.
+  var position; // Position in original stream of first byte in buffer.
+  var target;   // The place we want to seek to
+  var size;     // The number of bytes we want to emit
+  var callback; // Where to report the emitted bytes
+  var last;     // Store the last emitted item in case we want to rewind a little.
+  
+  function init(source) {
+    stream = source;
+    buffer = [];
+    consumed = 0;
+    position = 0;
+    last = null;
+  }
 
   // Read to position in a stream and read some bytes
   return function (t, s) {
@@ -17,14 +27,18 @@ function seekable(stream) {
     return continuable;
   };
 
-  // function log() {
-  //   return buffer.map(function (item) { return item.length; });
-  // }
+  function log() {
+    return buffer.map(function (item) { return item.length; });
+  }
 
   function continuable(cb) {
     if (callback) return cb(new Error("Only one seek at a time"));
-    callback = cb;
-    seek();
+    getStream(function (err, source) {
+      if (err) return cb(err);
+      init(source);
+      callback = cb;
+      seek();
+    });
   }
 
   function finish(err, item) {
@@ -34,8 +48,17 @@ function seekable(stream) {
   }
 
   function seek() {
-    if (position > target) return finish(new Error("Can't seek backwards to " + target + " from " + position));
-    // console.log("Seeking %s/%s", position, target, log());
+    console.log("Seeking %s/%s", position, target, log());
+    if (target < position) {
+      if (last) {
+        console.log("unshift last output", last.length);
+        position -= last.length;
+        buffer.unshift(last);
+        last = null;
+        return seek();
+      }
+      return finish(new Error("Can't seek backwards to " + target + " from " + position));
+    }
     while (position < target) {
 
       // If there is no data, load some and try again.
@@ -57,29 +80,29 @@ function seekable(stream) {
       break;
     }
 
-    // console.log("Seeking %s/%s", position, target, log());
+    console.log("Seeking %s/%s", position, target, log());
     consume();
   }
 
   function consume() {
-    // console.log("Consuming %s/%s", consumed, target + size, log());
+    console.log("Consuming %s/%s", consumed, target + size, log());
     if (consumed < target + size) return getMore(consume);
-    // console.log("Consuming %s/%s", consumed, target + size, log());
+    console.log("Consuming %s/%s", consumed, target + size, log());
     process();
   }
 
   function process() {
-    // console.log("processing", log());
+    console.log("processing", log());
 
     // Check for exact size
     var first = buffer[0];
     var item;
     if (first.length === size) {
-      // console.log("Exact change", size)
+      console.log("Exact change", size);
       item = buffer.shift();
     }
     else if (first.length > size) {
-      // console.log("pslice %s/%s", size, first.length)
+      console.log("pslice %s/%s", size, first.length);
       item = bops.subarray(first, 0, size);
       buffer[0] = bops.subarray(first, size);
     }
@@ -87,7 +110,7 @@ function seekable(stream) {
       item = bops.create(size);
       var i = 0;
       while (i < size) {
-        // console.log("piecemeal %s/%s", i, size, log());
+        console.log("piecemeal %s/%s", i, size, log());
         var diff = size - i;
         first = buffer[0];
         if (first.length <= diff) {
@@ -102,7 +125,8 @@ function seekable(stream) {
         }
       }
     }
-    // console.log("after processing", log());
+    last = item;
+    console.log("after processing", log());
     position += size;
     finish(null, item);
   }
