@@ -53,7 +53,7 @@ function seekable(getStream) {
   function seek() {
     // console.log("Seeking %s/%s", position, target, log());
     if (target < position) {
-      if (last) {
+      if (last && target >= position - last.length) {
         // console.log("unshift last output", last.length);
         position -= last.length;
         buffer.unshift(last);
