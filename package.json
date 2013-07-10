@@ -1,0 +1,31 @@
+{
+  "name": "seekable",
+  "version": "0.0.1",
+  "description": "Allows for forward seeking and buffered reading in a simple-stream of binary data.",
+  "main": "seekable.js",
+  "dependencies": {
+    "bops": "~0.0.6"
+  },
+  "devDependencies": {
+    "simple-stream-helpers": "~0.0.2",
+    "tape": "~1.0.4"
+  },
+  "scripts": {
+    "test": "node test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/creationix/seekable.git"
+  },
+  "keywords": [
+    "simple-stream",
+    "seek",
+    "binary",
+    "jsgit"
+  ],
+  "author": "Tim Caswell <tim@creationix.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/creationix/seekable/issues"
+  }
+}
