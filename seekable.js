@@ -2,15 +2,15 @@ var bops = require('bops');
 module.exports = seekable;
 
 function seekable(getStream) {
-  var stream;   // The current source stream.
-  var buffer;   // Buffered chunks.
-  var consumed; // Total number of bytes we've consumed ever.
-  var position; // Position in original stream of first byte in buffer.
-  var target;   // The place we want to seek to
-  var size;     // The number of bytes we want to emit
-  var callback; // Where to report the emitted bytes
-  var last;     // Store the last emitted item in case we want to rewind a little.
-  
+  var stream = null; // The current source stream.
+  var buffer = [];   // Buffered chunks.
+  var consumed = 0;  // Total number of bytes we've consumed ever.
+  var position = 0;  // Position in original stream of first byte in buffer.
+  var target;        // The place we want to seek to
+  var size;          // The number of bytes we want to emit
+  var callback;      // Where to report the emitted bytes
+  var last;          // Store the last emitted item in case we want to rewind a little.
+
   function init(source) {
     stream = source;
     buffer = [];
@@ -27,24 +27,27 @@ function seekable(getStream) {
     return continuable;
   };
 
-  function log() {
-    return buffer.map(function (item) { return item.length; });
-  }
+  // function log() {
+  //   return buffer.map(function (item) { return item.length; });
+  // }
 
   function continuable(cb) {
     if (callback) return cb(new Error("Only one seek at a time"));
-    getStream(function (err, source) {
-      if (err) return cb(err);
-      init(source);
-      callback = cb;
-      seek();
-    });
+    callback = cb;
+    if (stream) seek();
+    else getStream(onGetStream);
   }
 
   function finish(err, item) {
     var cb = callback;
     callback = null;
     cb(err, item);
+  }
+
+  function onGetStream(err, source) {
+    if (err) return finish(err);
+    init(source);
+    return seek();
   }
 
   function seek() {
@@ -57,7 +60,10 @@ function seekable(getStream) {
         last = null;
         return seek();
       }
-      return finish(new Error("Can't seek backwards to " + target + " from " + position));
+      // console.log("Getting new stream to rewind");
+      return stream.abort(function () {
+        return getStream(onGetStream);
+      });
     }
     while (position < target) {
 

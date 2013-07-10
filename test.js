@@ -52,7 +52,11 @@ function commonTest(getSource, assert) {
   subTest(0x600, 0x100, function () {
     subTest(0x780, 0x80, function () {
       subTest(0x89a, 0x123, function () {
-        assert.end();
+        subTest(0x900, 0x10, function () {
+          subTest(0x300, 0x50, function () {
+            assert.end();
+          });
+        });
       });
     });
   });
