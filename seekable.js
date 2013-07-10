@@ -48,10 +48,10 @@ function seekable(getStream) {
   }
 
   function seek() {
-    console.log("Seeking %s/%s", position, target, log());
+    // console.log("Seeking %s/%s", position, target, log());
     if (target < position) {
       if (last) {
-        console.log("unshift last output", last.length);
+        // console.log("unshift last output", last.length);
         position -= last.length;
         buffer.unshift(last);
         last = null;
@@ -80,29 +80,29 @@ function seekable(getStream) {
       break;
     }
 
-    console.log("Seeking %s/%s", position, target, log());
+    // console.log("Seeking %s/%s", position, target, log());
     consume();
   }
 
   function consume() {
-    console.log("Consuming %s/%s", consumed, target + size, log());
+    // console.log("Consuming %s/%s", consumed, target + size, log());
     if (consumed < target + size) return getMore(consume);
-    console.log("Consuming %s/%s", consumed, target + size, log());
+    // console.log("Consuming %s/%s", consumed, target + size, log());
     process();
   }
 
   function process() {
-    console.log("processing", log());
+    // console.log("processing", log());
 
     // Check for exact size
     var first = buffer[0];
     var item;
     if (first.length === size) {
-      console.log("Exact change", size);
+      // console.log("Exact change", size);
       item = buffer.shift();
     }
     else if (first.length > size) {
-      console.log("pslice %s/%s", size, first.length);
+      // console.log("pslice %s/%s", size, first.length);
       item = bops.subarray(first, 0, size);
       buffer[0] = bops.subarray(first, size);
     }
@@ -110,7 +110,7 @@ function seekable(getStream) {
       item = bops.create(size);
       var i = 0;
       while (i < size) {
-        console.log("piecemeal %s/%s", i, size, log());
+        // console.log("piecemeal %s/%s", i, size, log());
         var diff = size - i;
         first = buffer[0];
         if (first.length <= diff) {
@@ -126,7 +126,7 @@ function seekable(getStream) {
       }
     }
     last = item;
-    console.log("after processing", log());
+    // console.log("after processing", log());
     position += size;
     finish(null, item);
   }
