@@ -9,11 +9,27 @@ Create a `seek` function from a stream object.
 
 The `getStream` function allows seekable to get a new stream from you when it needs to rewind and start over.  It may be called more than once.  Make sure to pass in a new stream each time.
 
+```js
+var seekable = require('seekable');
+
+var seek = seekable(function (callback) {
+  // Create a stream for the thing you want to read from
+  // This may be called multiple times if you ever seek backwards.
+  callback(null, makeMyStream());
+});
+```
+
 ### seek(offset, bytes) continuable&lt;data>
 
 Seek to position `offset` and consume `bytes` calling the continuable's `callback(err, data)` when done.
 
-Note that you can't rewind the source stream and so offset must always be after the end of the last place you read from.
+Note that if you seek to a position that's already been read and discarded in the current source, it will ask you for another one to start over.
+
+```js
+seek(100, 100)(function (err, chunk) {
+  // I now have 100 bytes as position 100.
+});
+```
 
 ## License
 
